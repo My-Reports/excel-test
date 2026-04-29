@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Enterprise Pharma Dashboard - Pro Edition</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Tajawal:wght@400;500;700;800&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Tajawal', sans-serif; background-color: #f1f5f9; color: #334155; }
+        .container-custom { max-width: 99%; margin: 0 auto; padding: 10px; }
+        
+        .gold-row { background: linear-gradient(90deg, #fffde7 0%, #fef08a 100%) !important; border-right: 3px solid #eab308; }
+        .gold-text { color: #a16207; font-weight: 800; }
+        
+        .card { background: white; border-radius: 6px; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); display: flex; flex-direction: column; border: 1px solid #e2e8f0; }
+        .filter-input { border: 1px solid #cbd5e1; border-radius: 4px; padding: 4px 8px; width: 100%; font-size: 11px; outline: none; transition: 0.2s; background: #f8fafc; }
+        .filter-input:focus { border-color: #3b82f6; background: white; box-shadow: 0 0 0 2px #eff6ff; }
+        
+        .toggle-btn { background: rgba(255,255,255,0.15); color: #e2e8f0; padding: 2px 10px; border-radius: 12px; font-size: 11px; transition: 0.3s; cursor: pointer; font-weight: 700; border: 1px solid transparent; }
+        .active-toggle { background: #3b82f6; color: white; border-color: #60a5fa; box-shadow: 0 1px 4px rgba(59, 130, 246, 0.4); }
+        
+        .table-container { max-height: 380px; overflow-y: auto; flex-grow: 1; }
+        table { border-collapse: separate; border-spacing: 0; width: 100%; }
+        thead th { position: sticky; top: 0; background-color: #f8fafc; z-index: 10; cursor: pointer; font-size: 10px; border-bottom: 1px solid #e2e8f0; padding: 6px 8px !important; text-transform: uppercase; color: #64748b; letter-spacing: 0.5px;}
+        thead th:hover { background-color: #f1f5f9; }
+        tbody td { font-size: 11px; padding: 5px 8px !important; border-bottom: 1px solid #f1f5f9; }
+        
+        .subtotal-header th { position: sticky; top: 26px; background-color: #eff6ff; color: #1e40af; font-weight: 800; border-bottom: 2px solid #bfdbfe; font-size: 11px; z-index: 9; padding: 5px 8px !important; }
+
+        .badge { padding: 2px 6px; border-radius: 4px; font-size: 10px; font-weight: 800; display: inline-block; min-width: 50px; text-align: center; }
+        .badge-positive { background-color: #dcfce7; color: #166534; }
+        .badge-negative { background-color: #fee2e2; color: #991b1b; }
+
+        .data-bar-container { position: relative; width: 100%; display: flex; align-items: center; justify-content: flex-end; }
+        .data-bar { position: absolute; right: 0; height: 70%; background-color: rgba(59, 130, 246, 0.15); border-right: 2px solid #3b82f6; border-radius: 2px; z-index: 0; transition: width 0.4s ease-out; }
+        .data-val { position: relative; z-index: 1; font-weight: 700; }
+
+        .clickable-row { cursor: pointer; transition: all 0.1s; }
+        .clickable-row:hover { background-color: #f8fafc; }
+        .selected-row { background-color: #eff6ff !important; border-right: 3px solid #2563eb; font-weight: 700; }
+
+        /* Gemini Markdown Styles */
+        .prose h1, .prose h2, .prose h3 { color: #1e293b; font-weight: bold; margin-bottom: 0.5rem; margin-top: 1rem;}
+        .prose p { margin-bottom: 0.75rem; line-height: 1.6; }
+        .prose ul { list-style-type: disc; padding-right: 1.5rem; margin-bottom: 0.75rem; }
+        .prose strong { color: #0f172a; }
+
+        ::-webkit-scrollbar { width: 5px; height: 5px; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+    </style>
+</head>
+<body class="text-slate-800">
+
+    <div class="sticky top-0 z-[100] w-full flex flex-col shadow-lg">
+        <header class="bg-slate-900 border-b border-slate-700">
+            <div class="container-custom flex justify-between items-center py-2">
+                <div class="flex items-center gap-2">
+                    <div class="w-6 h-6 bg-blue-500 rounded flex items-center justify-center">
+                        <span class="text-white text-xs">📊</span>
+                    </div>
+                    <div>
+                        <h1 class="text-sm font-bold text-white tracking-wide">بوابة ذكاء الأعمال المترابطة</h1>
+                        <p id="dynamicSubtitle" class="text-[10px] text-blue-300 font-bold mt-0.5">📌 التحديد: كافة البيانات</p>
+                    </div>
+                </div>
+                
+                <div class="flex items-center gap-2">
+                    <div class="bg-slate-800 p-0.5 rounded-full flex gap-0.5 border border-slate-700">
+                        <button onclick="setMetric('Value')" id="btnValue" class="toggle-btn active-toggle">Value</button>
+                        <button onclick="setMetric('Units')" id="btnUnits" class="toggle-btn">Units</button>
+                    </div>
+                    <select id="currencyToggle" class="bg-slate-800 text-white rounded-full px-3 py-1 text-[11px] font-bold border border-slate-700 outline-none" onchange="applyFilters()">
+                        <option value="JD">JD</option>
+                        <option value="USD">USD</option>
+                    </select>
+                    
+                    <button onclick="openAIModal()" id="btnAI" class="hidden bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-1 rounded-full cursor-pointer font-bold text-[11px] shadow-sm transition-colors">
+                        ✨ تحليل Gemini
+                    </button>
+
+                    <input type="file" id="fileUpload" class="hidden" accept=".xlsx, .xls, .csv" />
+                    <label for="fileUpload" class="bg-blue-600 hover:bg-blue-500 text-white px-4 py-1 rounded-full cursor-pointer font-bold text-[11px] shadow-sm">
+                        رفع البيانات +
+                    </label>
+                </div>
+            </div>
+        </header>
+
+        <div class="bg-[#f1f5f9]/95 backdrop-blur-md border-b border-slate-300 py-2">
+            <div class="container-custom">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-3 items-center">
+                    
+                    <div class="lg:col-span-5 grid grid-cols-3 gap-2">
+                        <div>
+                            <label class="block text-[9px] font-bold text-slate-500 mb-0.5 uppercase">Molecules Name</label>
+                            <input list="listMolecule" id="searchMolecule" onchange="applyFilters()" placeholder="بحث..." class="filter-input shadow-inner">
+                            <datalist id="listMolecule"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-slate-500 mb-0.5 uppercase">Manufacturer</label>
+                            <input list="listMfg" id="searchManufacturer" onchange="applyFilters()" placeholder="بحث..." class="filter-input shadow-inner">
+                            <datalist id="listMfg"></datalist>
+                        </div>
+                        <div>
+                            <label class="block text-[9px] font-bold text-slate-500 mb-0.5 uppercase">Product</label>
+                            <input list="listProduct" id="searchProduct" onchange="applyFilters()" placeholder="بحث..." class="filter-input shadow-inner">
+                            <datalist id="listProduct"></datalist>
+                        </div>
+                    </div>
+
+                    <div class="lg:col-span-7 grid grid-cols-3 gap-2">
+                        <div class="card p-2 border-r-2 border-slate-600 flex flex-row items-center justify-between bg-white">
+                            <div class="text-[9px] font-bold text-slate-400">إجمالي 2024 (النشط)</div>
+                            <h2 class="text-lg font-extrabold text-slate-700" id="kpi2024">0</h2>
+                        </div>
+                        <div class="card p-2 border-r-2 border-blue-500 flex flex-row items-center justify-between bg-blue-50">
+                            <div class="text-[9px] font-bold text-blue-600">إجمالي 2025 (النشط)</div>
+                            <h2 class="text-lg font-extrabold text-blue-900" id="kpi2025">0</h2>
+                        </div>
+                        <div class="card p-2 border-r-2 border-emerald-500 flex flex-row items-center justify-between bg-white">
+                            <div class="text-[9px] font-bold text-slate-400">النمو % (النشط)</div>
+                            <h2 class="text-lg font-extrabold" id="kpiGrowth">0%</h2>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mainDashboard" class="container-custom hidden mt-4">
+        
+        <div class="grid grid-cols-1 lg:grid-cols-4 gap-3 mb-4">
+            <div class="card p-2 lg:col-span-1 border-t-2 border-slate-300">
+                <h3 class="font-bold text-slate-700 text-[11px] text-center border-b pb-1 mb-1" id="pieTitle">التوزيع النسبي (2025)</h3>
+                <div class="relative h-48 w-full">
+                    <canvas id="mfgPieChart"></canvas>
+                </div>
+            </div>
+
+            <div class="card lg:col-span-3 border-t-2 border-blue-400">
+                <div class="p-2 bg-slate-50 border-b flex justify-between items-center">
+                    <h3 class="font-bold text-slate-800 text-[12px]" id="mfgTableTitle">1. ترتيب المصنعين</h3>
+                    <button onclick="clearFilter('mfg')" class="text-[9px] font-bold bg-white border border-slate-300 text-slate-600 px-2 py-0.5 rounded hover:bg-rose-50 hover:text-rose-600">إلغاء التحديد ❌</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="w-1/4" onclick="setSort('mfg', 'name')">الشركة المصنعة ↕</th>
+                                <th class="text-center" onclick="setSort('mfg', 'rank24')">R24 ↕</th>
+                                <th class="text-center" onclick="setSort('mfg', 'rank25')">R25 ↕</th>
+                                <th class="text-center">تغير</th>
+                                <th onclick="setSort('mfg', 'v24')">مبيعات 24 ↕</th>
+                                <th onclick="setSort('mfg', 'v25')">مبيعات 25 ↕</th>
+                                <th class="text-center" onclick="setSort('mfg', 'growth')">النمو % ↕</th>
+                            </tr>
+                            <tr class="subtotal-header" id="mfgSubtotalRow"></tr>
+                        </thead>
+                        <tbody id="mfgTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-8">
+            <div class="card border-t-2 border-indigo-400">
+                <div class="p-2 bg-slate-50 border-b flex justify-between items-center">
+                    <h3 class="font-bold text-slate-800 text-[12px] truncate max-w-[70%]" id="molTableTitle">2. المادة الفعالة</h3>
+                    <button onclick="clearFilter('mol')" class="text-[9px] font-bold bg-white border border-slate-300 text-slate-600 px-2 py-0.5 rounded hover:bg-rose-50 hover:text-rose-600">إلغاء التحديد ❌</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="w-2/5" onclick="setSort('mol', 'name')">Molecules Name ↕</th>
+                                <th onclick="setSort('mol', 'v24')">2024 ↕</th>
+                                <th onclick="setSort('mol', 'v25')">2025 ↕</th>
+                                <th class="text-center" onclick="setSort('mol', 'growth')">النمو % ↕</th>
+                            </tr>
+                            <tr class="subtotal-header" id="molSubtotalRow"></tr>
+                        </thead>
+                        <tbody id="molTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <div class="card border-t-2 border-emerald-400">
+                <div class="p-2 bg-slate-50 border-b flex justify-between items-center">
+                    <h3 class="font-bold text-slate-800 text-[12px] truncate max-w-[70%]" id="prodTableTitle">3. الأصناف</h3>
+                    <button onclick="clearFilter('prod')" class="text-[9px] font-bold bg-white border border-slate-300 text-slate-600 px-2 py-0.5 rounded hover:bg-rose-50 hover:text-rose-600">مسح البحث ❌</button>
+                </div>
+                <div class="table-container">
+                    <table>
+                        <thead>
+                            <tr>
+                                <th class="w-1/3" onclick="setSort('prod', 'name')">Product ↕</th>
+                                <th onclick="setSort('prod', 'mfg')">Mfg ↕</th>
+                                <th onclick="setSort('prod', 'v24')">2024 ↕</th>
+                                <th onclick="setSort('prod', 'v25')">2025 ↕</th>
+                                <th class="text-center" onclick="setSort('prod', 'growth')">النمو % ↕</th>
+                            </tr>
+                            <tr class="subtotal-header" id="prodSubtotalRow"></tr>
+                        </thead>
+                        <tbody id="prodTableBody"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="errorState" class="container-custom text-center py-10 hidden mt-10">
+        <div class="bg-rose-50 border border-rose-200 p-4 rounded-lg inline-block max-w-lg shadow-md">
+            <h2 class="text-sm font-bold text-rose-700 mb-1">خطأ في قراءة الملف ⚠️</h2>
+            <p id="errorMsg" class="text-rose-600 text-xs mb-2 font-mono text-left bg-white p-2 rounded border border-rose-100" dir="ltr"></p>
+        </div>
+    </div>
+
+    <div id="aiModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-[200] hidden items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[90vh]">
+            <div class="p-4 border-b border-slate-200 flex justify-between items-center bg-indigo-50 rounded-t-xl">
+                <h2 class="text-lg font-bold text-indigo-900 flex items-center gap-2">
+                    <span>✨</span> رؤى ذكاء الأعمال المدعومة من Gemini
+                </h2>
+                <button onclick="closeAIModal()" class="text-slate-400 hover:text-rose-500 font-bold text-lg">&times;</button>
+            </div>
+            
+            <div class="p-4 overflow-y-auto flex-grow flex flex-col gap-4">
+                <div class="bg-slate-50 p-3 rounded-lg border border-slate-200 text-xs text-slate-600">
+                    <p class="mb-2">يقوم هذا المساعد بتحليل <b>البيانات المعروضة حالياً فقط</b> في اللوحة وتقديم ملخص استراتيجي.</p>
+                    <div class="flex gap-2 items-center">
+                        <label class="font-bold">مفتاح API الخاص بـ Gemini:</label>
+                        <input type="password" id="geminiApiKey" class="border border-slate-300 rounded px-2 py-1 w-64 outline-none focus:border-indigo-500" placeholder="AIzaSy...">
+                        <button onclick="saveApiKey()" class="bg-slate-200 hover:bg-slate-300 px-3 py-1 rounded text-slate-700 font-bold">حفظ المفتاح</button>
+                    </div>
+                </div>
+
+                <div id="aiOutput" class="prose text-sm text-slate-700 bg-white border border-indigo-100 p-4 rounded-lg min-h-[150px] shadow-inner hidden">
+                    </div>
+
+                <div id="aiLoading" class="hidden flex flex-col items-center justify-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-indigo-600 mb-2"></div>
+                    <p class="text-xs text-indigo-600 font-bold animate-pulse">جاري تحليل البيانات واستخلاص الرؤى...</p>
+                </div>
+            </div>
+
+            <div class="p-4 border-t border-slate-200 bg-slate-50 rounded-b-xl flex justify-end gap-2">
+                <button onclick="closeAIModal()" class="px-4 py-2 bg-white border border-slate-300 rounded-lg text-sm font-bold text-slate-600 hover:bg-slate-100">إغلاق</button>
+                <button onclick="runGeminiAnalysis()" class="px-4 py-2 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-sm font-bold shadow-md flex items-center gap-2">
+                    توليد التحليل 🚀
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let rawData = [];
+        let filteredBySearch = [];
+        let currentMetric = 'Value';
+        
+        let activeMfg = null;
+        let activeMol = null;
+        
+        let sortCfg = { mfg: { key: 'v25', dir: -1 }, mol: { key: 'v25', dir: -1 }, prod: { key: 'v25', dir: -1 } };
+        let pieChartInstance = null;
+
+        document.getElementById('fileUpload').addEventListener('click', function() { this.value = null; });
+
+        document.getElementById('fileUpload').addEventListener('change', e => {
+            const file = e.target.files[0];
+            if(!file) return;
+            document.getElementById('errorState').classList.add('hidden');
+            const reader = new FileReader();
+            
+            reader.onload = (event) => {
+                try {
+                    const data = event.target.result;
+                    if (typeof XLSX === 'undefined') throw new Error("مكتبة الإكسيل لم تكتمل التحميل.");
+                    const workbook = XLSX.read(data, {type: 'binary'});
+                    rawData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], {defval: 0});
+                    if (rawData.length === 0) throw new Error("الملف فارغ أو صيغة غير مدعومة.");
+
+                    document.getElementById('mainDashboard').classList.remove('hidden');
+                    document.getElementById('btnAI').classList.remove('hidden'); // إظهار زر الذكاء الاصطناعي
+                    populateDatalists();
+                    applyFilters(); 
+                } catch (error) {
+                    document.getElementById('mainDashboard').classList.add('hidden');
+                    document.getElementById('btnAI').classList.add('hidden');
+                    document.getElementById('errorState').classList.remove('hidden');
+                    document.getElementById('errorMsg').innerText = error.message;
+                }
+            };
+            reader.readAsBinaryString(file);
+        });
+
+        function populateDatalists() {
+            const mols = new Set(), mfgs = new Set(), prods = new Set();
+            rawData.forEach(d => {
+                if(d.Molecule) mols.add(String(d.Molecule).trim());
+                if(d.Manufacturer) mfgs.add(String(d.Manufacturer).trim());
+                if(d.Product) prods.add(String(d.Product).trim());
+            });
+            const buildList = (id, set) => document.getElementById(id).innerHTML = [...set].sort().map(val => `<option value="${val}">`).join('');
+            buildList('listMolecule', mols); buildList('listMfg', mfgs); buildList('listProduct', prods);
+        }
+
+        function setMetric(m) {
+            currentMetric = m;
+            document.getElementById('btnValue').classList.toggle('active-toggle', m === 'Value');
+            document.getElementById('btnUnits').classList.toggle('active-toggle', m === 'Units');
+            const currToggle = document.getElementById('currencyToggle');
+            currToggle.disabled = (m === 'Units');
+            currToggle.style.opacity = m === 'Units' ? '0.5' : '1';
+            renderAll();
+        }
+
+        function applyFilters() {
+            activeMfg = null; activeMol = null;
+            const sMol = document.getElementById('searchMolecule').value.toLowerCase();
+            const sMfg = document.getElementById('searchManufacturer').value.toLowerCase();
+            const sProd = document.getElementById('searchProduct').value.toLowerCase();
+
+            filteredBySearch = rawData.filter(d => 
+                (String(d.Molecule || '').toLowerCase().includes(sMol)) &&
+                (String(d.Manufacturer || '').toLowerCase().includes(sMfg)) &&
+                (String(d.Product || '').toLowerCase().includes(sProd))
+            );
+            renderAll();
+        }
+
+        function clearFilter(level) {
+            if(level === 'mfg') activeMfg = null; 
+            if(level === 'mol') activeMol = null; 
+            if(level === 'prod') { document.getElementById('searchProduct').value = ''; applyFilters(); return; }
+            renderAll();
+        }
+
+        function setSort(table, key) {
+            if(sortCfg[table].key === key) sortCfg[table].dir *= -1;
+            else { sortCfg[table].key = key; sortCfg[table].dir = -1; }
+            renderAll();
+        }
+
+        function getCols() {
+            const curr = document.getElementById('currencyToggle').value;
+            if (currentMetric === 'Units') return { c24: '2024_Units', c25: '2025_Units' };
+            return curr === 'USD' ? { c24: '2024_Value(USD)', c25: '2025_Value(USD)' } : { c24: '2024_value(JD)', c25: '2025_value(JD)' };
+        }
+
+        function updateBreadcrumbs() {
+            let txt = "📌 التحديد: ";
+            if (activeMfg && activeMol) txt += `<span class="bg-blue-600 text-white px-1.5 rounded">${activeMfg}</span> ⬅️ <span class="bg-indigo-500 text-white px-1.5 rounded">${activeMol}</span>`;
+            else if (activeMfg) txt += `<span class="bg-blue-600 text-white px-1.5 rounded">${activeMfg}</span>`;
+            else if (activeMol) txt += `<span class="bg-indigo-500 text-white px-1.5 rounded">${activeMol}</span>`;
+            else txt += "كافة البيانات";
+            document.getElementById('dynamicSubtitle').innerHTML = txt;
+        }
+
+        function renderAll() {
+            const cols = getCols();
+            updateBreadcrumbs();
+            
+            let globalData = filteredBySearch;
+            if (activeMfg) globalData = globalData.filter(r => String(r.Manufacturer).trim() === activeMfg);
+            if (activeMol) globalData = globalData.filter(r => String(r.Molecule).trim() === activeMol);
+            
+            const k24 = globalData.reduce((sum, r) => sum + (Number(r[cols.c24]) || 0), 0);
+            const k25 = globalData.reduce((sum, r) => sum + (Number(r[cols.c25]) || 0), 0);
+            const kGrowth = k24 ? ((k25 - k24) / k24) * 100 : 0;
+            
+            document.getElementById('kpi2024').innerText = formatNum(k24);
+            document.getElementById('kpi2025').innerText = formatNum(k25);
+            document.getElementById('kpiGrowth').innerText = kGrowth.toFixed(1) + '%';
+            document.getElementById('kpiGrowth').className = `text-lg font-extrabold ${kGrowth >= 0 ? 'text-emerald-500' : 'text-rose-500'}`;
+
+            renderDash1(cols);
+            renderDash2(cols);
+            renderDash3(cols, globalData); 
+            renderPieChart(cols, globalData); 
+        }
+
+        function generateGrowthBadge(growth) {
+            if (growth >= 0) return `<span class="badge badge-positive">+${growth.toFixed(1)}%</span>`;
+            return `<span class="badge badge-negative">${growth.toFixed(1)}%</span>`;
+        }
+
+        function generateDataBar(value, max) {
+            if (!max || value <= 0) return `<div class="data-val">${formatNum(value)}</div>`;
+            const pct = Math.min((value / max) * 100, 100);
+            return `<div class="data-bar-container"><div class="data-bar" style="width: ${pct}%;"></div><div class="data-val">${formatNum(value)}</div></div>`;
+        }
+
+        function renderPieChart(cols, globalData) {
+            let pieMap = {};
+            let isMoleculeMode = false;
+
+            if (activeMfg && !activeMol) {
+                document.getElementById('pieTitle').innerText = `المواد الفعالة لـ ${activeMfg}`;
+                isMoleculeMode = true;
+                globalData.forEach(r => {
+                    const m = String(r.Molecule || 'Unknown').trim();
+                    pieMap[m] = (pieMap[m] || 0) + (Number(r[cols.c25]) || 0);
+                });
+            } else {
+                let title = activeMol ? `الشركات المصنعة لـ ${activeMol}` : `الحصة السوقية للشركات`;
+                if(activeMfg && activeMol) title = `تقاطع (${activeMfg}) و (${activeMol})`; 
+                document.getElementById('pieTitle').innerText = title;
+                
+                globalData.forEach(r => {
+                    const m = String(r.Manufacturer || 'Unknown').trim();
+                    pieMap[m] = (pieMap[m] || 0) + (Number(r[cols.c25]) || 0);
+                });
+            }
+
+            const top10Chart = Object.values(pieMap).map((v, i) => ({name: Object.keys(pieMap)[i], v25: v})).sort((a,b) => b.v25 - a.v25);
+            let labels = top10Chart.slice(0, 10).map(x => x.name);
+            let data = top10Chart.slice(0, 10).map(x => x.v25);
+            if(top10Chart.length > 10) {
+                data.push(top10Chart.slice(10).reduce((s, x) => s + x.v25, 0));
+                labels.push('Others');
+            }
+
+            const bgColors = isMoleculeMode ? 
+                ['#4f46e5', '#6366f1', '#818cf8', '#a5b4fc', '#c7d2fe', '#8b5cf6', '#a78bfa', '#c4b5fd', '#d8b4fe', '#e879f9', '#e2e8f0'] : 
+                ['#1e3a8a', '#2563eb', '#3b82f6', '#60a5fa', '#93c5fd', '#10b981', '#34d399', '#f59e0b', '#fbbf24', '#fcd34d', '#cbd5e1'];
+
+            if(pieChartInstance) pieChartInstance.destroy();
+            pieChartInstance = new Chart(document.getElementById('mfgPieChart'), {
+                type: 'doughnut',
+                data: { labels: labels, datasets: [{ data: data, backgroundColor: bgColors, hoverOffset: 8, borderWidth: 1 }] },
+                options: { responsive: true, maintainAspectRatio: false, cutout: '60%', plugins: { legend: { position: 'right', labels: { boxWidth: 6, font: { size: 9, family: 'Tajawal' } } }, tooltip: { backgroundColor: 'rgba(15, 23, 42, 0.9)', padding: 8, cornerRadius: 4, callbacks: { label: function(c) { let val = c.raw; let tot = c.chart._metasets[c.datasetIndex].total; let pct = ((val / tot) * 100).toFixed(1) + '%'; return ` ${formatNum(val)} (${pct})`; } } } } }
+            });
+        }
+
+        function renderDash1(cols) {
+            let mfgBaseData = filteredBySearch;
+            if(activeMol) mfgBaseData = mfgBaseData.filter(r => String(r.Molecule).trim() === activeMol);
+            
+            document.getElementById('mfgTableTitle').innerHTML = activeMol ? `1. المصنعون لـ <span class="text-blue-600">${activeMol}</span>` : `1. ترتيب المصنعين`;
+
+            const mfgMap = {};
+            mfgBaseData.forEach(r => {
+                const m = String(r.Manufacturer || 'Unknown').trim();
+                if(!mfgMap[m]) mfgMap[m] = { name: m, v24: 0, v25: 0 };
+                mfgMap[m].v24 += Number(r[cols.c24]) || 0;
+                mfgMap[m].v25 += Number(r[cols.c25]) || 0;
+            });
+
+            let mfgArr = Object.values(mfgMap);
+            mfgArr.sort((a,b) => b.v24 - a.v24).forEach((x, i) => x.rank24 = i + 1);
+            mfgArr.sort((a,b) => b.v25 - a.v25).forEach((x, i) => { x.rank25 = i + 1; x.growth = x.v24 ? ((x.v25 - x.v24) / x.v24) * 100 : 0; });
+
+            const maxV25 = Math.max(...mfgArr.map(m => m.v25));
+            const t24 = mfgArr.reduce((s, x) => s + x.v24, 0);
+            const t25 = mfgArr.reduce((s, x) => s + x.v25, 0);
+            const tGrowth = t24 ? ((t25 - t24) / t24) * 100 : 0;
+            
+            document.getElementById('mfgSubtotalRow').innerHTML = `
+                <th colspan="4" class="text-left">الإجمالي:</th>
+                <th class="text-right">${formatNum(t24)}</th>
+                <th class="text-right text-blue-700">${formatNum(t25)}</th>
+                <th class="text-center">${generateGrowthBadge(tGrowth)}</th>
+            `;
+
+            const { key, dir } = sortCfg.mfg;
+            mfgArr.sort((a, b) => (a[key] > b[key] ? 1 : -1) * dir);
+
+            document.getElementById('mfgTableBody').innerHTML = mfgArr.map(m => {
+                const isSelected = activeMfg === m.name;
+                const isDar = String(m.name).toUpperCase().includes('DAR AL-DAWA');
+                const safeName = String(m.name).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                
+                const rankDiff = m.rank24 - m.rank25;
+                let rankHtml = rankDiff > 0 ? `<span class="text-emerald-500 font-bold text-[9px]">▲ ${rankDiff}</span>` : (rankDiff < 0 ? `<span class="text-rose-500 font-bold text-[9px]">▼ ${Math.abs(rankDiff)}</span>` : `<span class="text-slate-300">-</span>`);
+
+                return `
+                <tr class="clickable-row ${isSelected ? 'selected-row' : ''} ${isDar && !isSelected ? 'gold-row' : ''}" onclick="toggleMfg('${safeName}')">
+                    <td class="font-semibold ${isDar ? 'gold-text' : 'text-slate-700'} max-w-[130px] truncate" title="${m.name}">
+                        ${isDar ? '👑 ' : ''}${m.name}
+                    </td>
+                    <td class="text-center text-slate-400 font-mono text-[10px]">${m.rank24}</td>
+                    <td class="text-center font-extrabold text-blue-600 font-mono text-[10px]">${m.rank25}</td>
+                    <td class="text-center" dir="ltr">${rankHtml}</td>
+                    <td>${formatNum(m.v24)}</td>
+                    <td class="w-1/4">${generateDataBar(m.v25, maxV25)}</td>
+                    <td class="text-center">${generateGrowthBadge(m.growth)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderDash2(cols) {
+            let molBaseData = filteredBySearch;
+            if(activeMfg) molBaseData = molBaseData.filter(r => String(r.Manufacturer).trim() === activeMfg);
+            
+            document.getElementById('molTableTitle').innerHTML = activeMfg ? `2. مواد شركة <span class="text-blue-600">${activeMfg}</span>` : `2. المادة الفعالة`;
+
+            const molMap = {};
+            molBaseData.forEach(r => {
+                const m = String(r.Molecule || 'Unknown').trim();
+                if(!molMap[m]) molMap[m] = { name: m, v24: 0, v25: 0 };
+                molMap[m].v24 += Number(r[cols.c24]) || 0;
+                molMap[m].v25 += Number(r[cols.c25]) || 0;
+            });
+
+            let molArr = Object.values(molMap);
+            molArr.forEach(x => x.growth = x.v24 ? ((x.v25 - x.v24) / x.v24) * 100 : 0);
+            
+            const maxV25 = Math.max(...molArr.map(m => m.v25));
+            const t24 = molArr.reduce((s, x) => s + x.v24, 0);
+            const t25 = molArr.reduce((s, x) => s + x.v25, 0);
+            const tGrowth = t24 ? ((t25 - t24) / t24) * 100 : 0;
+            
+            document.getElementById('molSubtotalRow').innerHTML = `
+                <th class="text-left">الإجمالي:</th>
+                <th class="text-right">${formatNum(t24)}</th>
+                <th class="text-right text-blue-700">${formatNum(t25)}</th>
+                <th class="text-center">${generateGrowthBadge(tGrowth)}</th>
+            `;
+
+            const { key, dir } = sortCfg.mol;
+            molArr.sort((a, b) => (a[key] > b[key] ? 1 : -1) * dir);
+
+            document.getElementById('molTableBody').innerHTML = molArr.map(m => {
+                const isSelected = activeMol === m.name;
+                const safeName = String(m.name).replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                return `
+                <tr class="clickable-row ${isSelected ? 'selected-row' : ''}" onclick="toggleMol('${safeName}')">
+                    <td class="font-semibold text-slate-700 max-w-[130px] truncate" title="${m.name}">${m.name}</td>
+                    <td>${formatNum(m.v24)}</td>
+                    <td class="w-1/3">${generateDataBar(m.v25, maxV25)}</td>
+                    <td class="text-center">${generateGrowthBadge(m.growth)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function renderDash3(cols, globalData) {
+            document.getElementById('prodTableTitle').innerHTML = (activeMfg || activeMol) ? `3. الأصناف (مفلتر)` : `3. الأصناف (الكل)`;
+
+            const prodMap = {};
+            globalData.forEach(r => {
+                const p = String(r.Product || 'Unknown').trim();
+                const mfg = String(r.Manufacturer || 'Unknown').trim();
+                const key = p + '|' + mfg;
+                if(!prodMap[key]) prodMap[key] = { name: p, mfg: mfg, v24: 0, v25: 0 };
+                prodMap[key].v24 += Number(r[cols.c24]) || 0;
+                prodMap[key].v25 += Number(r[cols.c25]) || 0;
+            });
+
+            let prodArr = Object.values(prodMap);
+            prodArr.forEach(x => x.growth = x.v24 ? ((x.v25 - x.v24) / x.v24) * 100 : 0);
+            
+            const maxV25 = Math.max(...prodArr.map(m => m.v25));
+            const t24 = prodArr.reduce((s, x) => s + x.v24, 0);
+            const t25 = prodArr.reduce((s, x) => s + x.v25, 0);
+            const tGrowth = t24 ? ((t25 - t24) / t24) * 100 : 0;
+            
+            document.getElementById('prodSubtotalRow').innerHTML = `
+                <th colspan="2" class="text-left">الإجمالي:</th>
+                <th class="text-right">${formatNum(t24)}</th>
+                <th class="text-right text-blue-700">${formatNum(t25)}</th>
+                <th class="text-center">${generateGrowthBadge(tGrowth)}</th>
+            `;
+
+            const { key, dir } = sortCfg.prod;
+            prodArr.sort((a, b) => (a[key] > b[key] ? 1 : -1) * dir);
+
+            document.getElementById('prodTableBody').innerHTML = prodArr.map(p => {
+                const isDar = String(p.mfg).toUpperCase().includes('DAR AL-DAWA');
+                return `
+                <tr class="clickable-row ${isDar ? 'gold-row' : ''}">
+                    <td class="font-semibold ${isDar ? 'gold-text' : 'text-slate-800'} max-w-[100px] truncate" title="${p.name}">
+                        ${isDar ? '👑 ' : ''}${p.name}
+                    </td>
+                    <td class="text-[9px] text-slate-400 max-w-[60px] truncate" title="${p.mfg}">${p.mfg}</td>
+                    <td>${formatNum(p.v24)}</td>
+                    <td class="w-1/4">${generateDataBar(p.v25, maxV25)}</td>
+                    <td class="text-center">${generateGrowthBadge(p.growth)}</td>
+                </tr>`;
+            }).join('');
+        }
+
+        function toggleMfg(mfgName) { activeMfg = (activeMfg === mfgName) ? null : mfgName; renderAll(); }
+        function toggleMol(molName) { activeMol = (activeMol === molName) ? null : molName; renderAll(); }
+        function formatNum(v) { return new Intl.NumberFormat('en-US', { maximumFractionDigits: 0 }).format(v); }
+
+        /* =========================================
+           Gemini AI Integration Logic
+           ========================================= */
+
+        // استرجاع المفتاح المحفوظ مسبقاً
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedKey = localStorage.getItem('gemini_api_key');
+            if(savedKey) document.getElementById('geminiApiKey').value = savedKey;
+        });
+
+        function saveApiKey() {
+            const key = document.getElementById('geminiApiKey').value.trim();
+            if(key) {
+                localStorage.setItem('gemini_api_key', key);
+                alert("تم حفظ المفتاح بنجاح محلياً في متصفحك.");
+            }
+        }
+
+        function openAIModal() {
+            document.getElementById('aiModal').classList.remove('hidden');
+            document.getElementById('aiModal').classList.add('flex');
+            document.getElementById('aiOutput').classList.add('hidden');
+            document.getElementById('aiOutput').innerHTML = '';
+        }
+
+        function closeAIModal() {
+            document.getElementById('aiModal').classList.add('hidden');
+            document.getElementById('aiModal').classList.remove('flex');
+        }
+
+        function generateDataPrompt() {
+            const cols = getCols();
+            let data = filteredBySearch;
+            if (activeMfg) data = data.filter(r => String(r.Manufacturer).trim() === activeMfg);
+            if (activeMol) data = data.filter(r => String(r.Molecule).trim() === activeMol);
+
+            const t24 = data.reduce((s, r) => s + (Number(r[cols.c24]) || 0), 0);
+            const t25 = data.reduce((s, r) => s + (Number(r[cols.c25]) || 0), 0);
+            const growth = t24 ? ((t25 - t24) / t24) * 100 : 0;
+
+            const mfgMap = {};
+            data.forEach(r => {
+                const m = String(r.Manufacturer || 'Unknown').trim();
+                mfgMap[m] = (mfgMap[m] || 0) + (Number(r[cols.c25]) || 0);
+            });
+            const topMfgs = Object.entries(mfgMap)
+                                  .sort((a,b) => b[1] - a[1])
+                                  .slice(0, 5)
+                                  .map(x => `${x[0]} (${formatNum(x[1])})`).join(', ');
+
+            const metricName = currentMetric === 'Value' ? `المبيعات (${document.getElementById('currencyToggle').value})` : 'الكميات المباعة (Units)';
+            const scope = `الشركة: ${activeMfg ? activeMfg : 'الكل'} | المادة الفعالة: ${activeMol ? activeMol : 'الكل'}`;
+
+            return `أنت مستشار أعمال ذكي ومحلل بيانات صيدلانية خبير. بناءً على البيانات الدقيقة التالية المفلترة في لوحة القيادة:
+
+نطاق البيانات الحالي: ${scope}
+المعيار المالي: ${metricName}
+إجمالي 2024: ${formatNum(t24)}
+إجمالي 2025: ${formatNum(t25)}
+نسبة النمو الإجمالية: ${growth.toFixed(2)}%
+أعلى 5 شركات ضمن هذا النطاق لعام 2025: ${topMfgs}
+
+المطلوب:
+اكتب تحليلاً قصيراً واحترافياً (بين 100 إلى 150 كلمة باللغة العربية). 
+1. لخص أداء النمو العام أو التراجع.
+2. اذكر أبرز اللاعبين (الشركات) المؤثرين في هذا النطاق.
+3. قدم توصية سريعة قابلة للتنفيذ لمندوبي المبيعات أو الإدارة الاستراتيجية.
+استخدم تنسيق Markdown لإبراز الأرقام والنقاط الرئيسية.`;
+        }
+
+        async function runGeminiAnalysis() {
+            const apiKey = document.getElementById('geminiApiKey').value.trim();
+            if(!apiKey) {
+                alert('يرجى إدخال مفتاح API الخاص بـ Gemini أولاً.');
+                return;
+            }
+
+            const promptText = generateDataPrompt();
+            
+            document.getElementById('aiOutput').classList.add('hidden');
+            document.getElementById('aiLoading').classList.remove('hidden');
+
+            try {
+                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        contents: [{ parts: [{ text: promptText }] }]
+                    })
+                });
+
+                const result = await response.json();
+                document.getElementById('aiLoading').classList.add('hidden');
+                
+                if (result.error) {
+                    throw new Error(result.error.message || "فشل الاتصال بـ API");
+                }
+
+                const aiText = result.candidates[0].content.parts[0].text;
+                
+                // استخدام marked.js لتحويل Markdown إلى HTML
+                const htmlOutput = marked.parse(aiText);
+                document.getElementById('aiOutput').innerHTML = htmlOutput;
+                document.getElementById('aiOutput').classList.remove('hidden');
+
+            } catch (error) {
+                document.getElementById('aiLoading').classList.add('hidden');
+                document.getElementById('aiOutput').innerHTML = `<div class="text-rose-600 font-bold py-4">⚠️ خطأ في التحليل: ${error.message}</div>`;
+                document.getElementById('aiOutput').classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html>
